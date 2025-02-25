@@ -1,0 +1,21 @@
+---
+title: "assignment"
+output: html_document
+date: "2025-02-24"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Epiwraps library
+
+```{r}
+library(epiwraps)
+```
+
+## Print Session info
+
+```{r}
+sessionInfo()
+```

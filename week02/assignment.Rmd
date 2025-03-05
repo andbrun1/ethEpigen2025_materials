@@ -1,0 +1,89 @@
+---
+title: "assignment"
+output: html_document
+date: "2025-03-04"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Assignment 2
+
+```{r}
+suppressPackageStartupMessages({
+  library(AnnotationHub) # to fetch genomes, annotations, etc.
+  library(ensembldb)     # to manipulate ensembl gene annotations
+  library(GenomicRanges) # data structure for genomic ranges 
+  library(epiwraps)      # visualization
+  library(ggplot2)
+})
+```
+
+1a. Download Mouse Genome Version 102, genome build GRCm38
+
+```{r}
+ah <- AnnotationHub()
+query_results <- query(ah, c("Mus Musculus", "EnsDb"))
+name <- query_results$ah_id[which(query_results$title=="Ensembl 102 EnsDb for Mus musculus")]
+name
+ensdb_vers102 <- ah[["AH89211"]]
+ensdb_vers102
+```
+
+1b. Download Sequence in two bit format for GRCm38
+
+```{r}
+query_results_dna_sm <- query(ah, c("dna_sm", "GRCm38"))
+query_results_dna_sm
+query_results_dna_sm_oneexample <- query_results_dna_sm[["AH49775"]]
+query_results_dna_sm_oneexample
+```
+1c. Download sequence for drosophila melanogaster BDGP6
+```{r}
+query_results_dna_dm <- query(ah, c("dna_sm", "BDGP6"))
+query_results_dna_dm
+query_results_dna_dm_oneexample <- query_results_dna_dm[["AH49674"]]
+query_results_dna_dm_oneexample
+```
+2a. Number of unique ensembl gene IDs and gene symbols
+```{r}
+#Number of gene ids
+print("Number of unique gene IDs")
+genes <- genes(ensdb_vers102)
+length(unique(genes$gene_id))
+
+#genes$symbol
+#genes$gene_id_version
+print("Number of unique gene symbols")
+length(unique(genes$gene_id_version))
+```
+2b. Plot the distribution of the (spliced) length of protein-coding transcripts
+```{r}
+exons<- exons(ensdb_vers102, filter = ~ tx_biotype == "protein_coding", columns = c("tx_id", "seq_length"))
+#exons
+ranges <- ranges(exons)
+#ranges
+
+#widths <- numeric()
+length_df <- data.frame(transcript_id=character(0), 
+    width=numeric(0),
+    stringsAsFactors = FALSE
+)
+for (i in unique(exons$tx_id)){
+  #print(i)
+  ranges_per_tx <- ranges(exons[(exons$tx_id)==i])
+  #ranges_per_tx
+  sum <- sum(width(ranges_per_tx))
+  #print(sum)
+  #widths <- append(widths, sum)
+  add <- data.frame(transcript_id=i, width=sum)
+  length_df <- rbind(length_df, add)
+}
+#Plotting with ggplot
+ggplot(length_df, aes(x=width)) + geom_histogram(binwidth=60, colour="black", fill="white") + ggtitle("Distribution of length of spliced transcripts") +
+  xlab("Length of transcript") + ylab("Frequency")
+
+#Alternative plotting with hist
+#hist(x=widths, plot=TRUE, xlab = "Length of spliced transcript", ylab= "Frequency", main="Distribution of transcript lengths")
+```

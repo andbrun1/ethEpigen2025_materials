@@ -1,0 +1,113 @@
+---
+title: "Assignment 3"
+output: html_document
+date: "2025-03-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Assignment 3
+## Loading and installing
+
+```{r}
+BiocManager::install("ETHZ-INS/epiwraps", ref="callpeaks")
+
+suppressPackageStartupMessages({
+  library(AnnotationHub)
+  library(Rsubread)      # read alignment
+  library(rtracklayer)   # read/write genomic file formats
+  library(Biostrings)    # handling sequences, very efficient
+  library(Rfastp)        # read QC/trimming
+  library(epiwraps)      # visualization
+})
+ah <- AnnotationHub()
+```
+## Download and trimming
+```{r, eval=FALSE}
+options(timeout=3600)
+
+dir.create("raw")
+download.file("https://www.encodeproject.org/files/ENCFF127RRR/@@download/ENCFF127RRR.fastq.gz", "raw/dro.fastq.gz", mode="wb")
+
+dir.create("rfastp.trimmed")
+#Put files in a vector, lapply makes it apply to each in the vector, save the output at specified place, here nearly nothing to be trimmed, returns qc with statistics for trimmed
+qc <- Rfastp::rfastp("raw/dro.fastq.gz", thread=4, overrepresentationAnalysis=TRUE, outputFastq=file.path("rfastp.trimmed/CTCF"))
+
+```
+
+
+```{r, eval=FALSE}
+# we get the genome sequence from AnnotationHub
+genome <- ah[["AH49674"]]
+# we create a new directory that will contain the genome index
+dir.create("BDGP6_genome")
+# we write the genome sequence in fasta format (2bit is more efficient)
+export(import.2bit(genome), "BDGP6_genome/genome.fasta.gz", compress=TRUE)
+# we build a Rsubread index
+Rsubread::buildindex("BDGP6_genome/rsubread", reference="BDGP6_genome/genome.fasta.gz")
+```
+
+## Alignment and mapped reads
+
+```{r}
+dir.create("aligned")
+#Different function than align if it is spliced sequences
+# Readfile can have multipe files at once, sort to get by coordinates, puts all into align.stats (e.g. multiple alignment, the longer the reads the fewer alignments per read are possible)
+align.stats <- Rsubread::align(index="BDGP6_genome/rsubread", type="dna",
+                               readfile1="rfastp.trimmed/CTCF_R1.fastq.gz",
+                               output_file="aligned/CTCF.bam",
+                               nthreads=6, sortReadsByCoordinates=TRUE)
+#align.stats
+mapped <- align.stats["Mapped_reads",]
+percentage_mapped <- align.stats["Mapped_reads",]/align.stats["Total_reads",]
+print("Number of mapped reads:")
+mapped
+print("Percentage of mapped reads:")
+percentage_mapped
+```
+## Peak calling and plotting
+```{r}
+# install MACSr, if not already done:
+BiocManager::install("ETHZ-INS/epiwraps", ref="callpeaks")
+
+peaks <- callPeaks(bam="aligned/CTCF.bam")
+```
+
+```{r}
+#print(genome)
+#head(peaks, 80)
+print("Number of peaks:")
+length(peaks)
+#peaks[which(max(peaks$maxCount)==peaks$maxCount)]
+#peaks[79]
+#tell which peak should be visualized plus 5000 nucs on each side, ttk will show coverage track, how many reads overlapping this region
+# input shows noise as desired from input - reset both plots to same scale to get good comparison
+plotSignalTracks(list(CTCF="aligned/CTCF.bam"), region=peaks[50], extend=5000)
+
+```
+
+# Find peak in coding region
+```{r}
+#import(genome)
+#seqinfo(genome)
+query_results_dna_dm <- query(ah, c("Drosophila", "BDGP6"))
+ensdb <- ah[["AH113629"]]
+coding_regions <- genes(ensdb, filter=GeneBiotypeFilter("protein_coding"))
+
+#fasta_ranges <- peaks$ranges
+#coding_ranges <- ranges(coding_regions)
+#coding_ranges <- sort(coding_ranges, by= ~ start+end)
+#peaks[50]
+#1902438+11 is position of peak 50 (end 1902521)
+#coding_regions_overlap <- coding_ranges[which(start(coding_ranges)<1902438 & end(coding_ranges)>1902438)]
+# Peak 50 overlaps a coding gene
+
+myRegions <- as("2L:1902438-1902521", "GRanges")
+overlaps <- findOverlaps(coding_regions, myRegions)
+#overlaps
+#coding_regions[222]
+#which(overlapsAny(coding_regions, myRegions)==TRUE)
+```
+

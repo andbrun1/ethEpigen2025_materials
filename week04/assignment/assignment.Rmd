@@ -1,0 +1,71 @@
+---
+title: "assignment"
+output: html_document
+date: "2025-03-17"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Assignment 4
+
+## Loading of required packages
+
+
+```{r}
+suppressPackageStartupMessages({
+  library(rtracklayer)
+  library(GenomicRanges)
+  library(R.utils)
+})
+```
+## Download of required files
+
+```{r, eval=FALSE}
+# Download and unzipping for all required files containing peaks for different marks and one TF in mESCs
+
+download.file("https://www.encodeproject.org/files/ENCFF824OIP/@@download/ENCFF824OIP.bed.gz", "H3K27ac.bed.gz")
+gunzip("H3K27ac.bed.gz")
+
+download.file("https://www.encodeproject.org/files/ENCFF771SBG/@@download/ENCFF771SBG.bed.gz", "H3K4me1.bed.gz")
+gunzip("H3K4me1.bed.gz")
+
+download.file("https://www.encodeproject.org/files/ENCFF422YVG/@@download/ENCFF422YVG.bed.gz", "H3K4me3.bed.gz")
+gunzip("H3K4me3.bed.gz", remove=FALSE)
+
+download.file("https://www.encodeproject.org/files/ENCFF558YNC/@@download/ENCFF558YNC.bed.gz", "H3K27me3.bed.gz")
+gunzip("H3K27me3.bed.gz", remove=FALSE)
+
+download.file("https://www.encodeproject.org/files/ENCFF460EOA/@@download/ENCFF460EOA.bed.gz", "p300.bed.gz")
+gunzip("p300.bed.gz", remove=FALSE)
+```
+## Overlaps of p300 and different marks
+
+```{r}
+# Loading of all previously downloaded bed files
+p300_peaks <- rtracklayer::import("p300.bed", format="narrowPeak")
+H3K27ac_peaks <- rtracklayer::import("H3K27ac.bed", format="narrowPeak")
+H3K4me1_peaks <- rtracklayer::import("H3K4me1.bed", format="narrowPeak")
+H3K4me3_peaks <- rtracklayer::import("H3K4me3.bed", format="narrowPeak")
+H3K27me3_peaks <- rtracklayer::import("H3K27me3.bed", format="narrowPeak")
+
+#Stringent overlap count with "within"
+overlap_p300_H3K27ac <- sum(countOverlaps(p300_peaks, H3K27ac_peaks, maxgap=-1L, minoverlap=0L, type="within"))
+overlap_p300_H3K4me1 <- sum(countOverlaps(p300_peaks, H3K4me1_peaks, maxgap=-1L, minoverlap=0L, type="within"))
+overlap_p300_H3K4me3 <- sum(countOverlaps(p300_peaks, H3K4me3_peaks, maxgap=-1L, minoverlap=0L, type="within"))
+overlap_p300_H3K27me3 <- sum(countOverlaps(p300_peaks, H3K27me3_peaks, maxgap=-1L, minoverlap=0L, type="within"))
+
+# Number of all p300 peaks
+p300_peak_num <- length(p300_peaks)
+
+# Calculation and print of all percentages
+perc_H3K27ac <- overlap_p300_H3K27ac/p300_peak_num*100
+perc_H3K4me1 <- overlap_p300_H3K4me1/p300_peak_num*100
+perc_H3K4me3 <- overlap_p300_H3K4me3/p300_peak_num*100
+perc_H3K27me3 <- overlap_p300_H3K27me3/p300_peak_num*100
+sprintf("Percentage of p300 peaks overlapped by H3K27ac: %f", perc_H3K27ac)
+sprintf("Percentage of p300 peaks overlapped by H3K4me1: %f", perc_H3K4me1)
+sprintf("Percentage of p300 peaks overlapped by H3K4me3: %f", perc_H3K4me3)
+sprintf("Percentage of p300 peaks overlapped by H3K27me3: %f", perc_H3K27me3)
+```

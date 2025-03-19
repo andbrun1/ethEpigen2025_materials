@@ -397,10 +397,16 @@ H3K4me3_peaks &lt;- rtracklayer::import(&quot;H3K4me3.bed&quot;, format=&quot;na
 H3K27me3_peaks &lt;- rtracklayer::import(&quot;H3K27me3.bed&quot;, format=&quot;narrowPeak&quot;)
 
 #Stringent overlap count with &quot;within&quot;
-overlap_p300_H3K27ac &lt;- sum(countOverlaps(p300_peaks, H3K27ac_peaks, maxgap=-1L, minoverlap=0L, type=&quot;within&quot;))
-overlap_p300_H3K4me1 &lt;- sum(countOverlaps(p300_peaks, H3K4me1_peaks, maxgap=-1L, minoverlap=0L, type=&quot;within&quot;))
-overlap_p300_H3K4me3 &lt;- sum(countOverlaps(p300_peaks, H3K4me3_peaks, maxgap=-1L, minoverlap=0L, type=&quot;within&quot;))
-overlap_p300_H3K27me3 &lt;- sum(countOverlaps(p300_peaks, H3K27me3_peaks, maxgap=-1L, minoverlap=0L, type=&quot;within&quot;))
+#overlap_p300_H3K27ac &lt;- sum(countOverlaps(p300_peaks, H3K27ac_peaks, maxgap=-1L, minoverlap=0L, type=&quot;within&quot;))
+#overlap_p300_H3K4me1 &lt;- sum(countOverlaps(p300_peaks, H3K4me1_peaks, maxgap=-1L, minoverlap=0L, type=&quot;within&quot;))
+#overlap_p300_H3K4me3 &lt;- sum(countOverlaps(p300_peaks, H3K4me3_peaks, maxgap=-1L, minoverlap=0L, type=&quot;within&quot;))
+#overlap_p300_H3K27me3 &lt;- sum(countOverlaps(p300_peaks, H3K27me3_peaks, maxgap=-1L, minoverlap=0L, type=&quot;within&quot;))
+
+# Adapted overlap count with &quot;any&quot;
+overlap_p300_H3K27ac &lt;- sum(countOverlaps(p300_peaks, H3K27ac_peaks, maxgap=-1L, minoverlap=0L, type=&quot;any&quot;))
+overlap_p300_H3K4me1 &lt;- sum(countOverlaps(p300_peaks, H3K4me1_peaks, maxgap=-1L, minoverlap=0L, type=&quot;any&quot;))
+overlap_p300_H3K4me3 &lt;- sum(countOverlaps(p300_peaks, H3K4me3_peaks, maxgap=-1L, minoverlap=0L, type=&quot;any&quot;))
+overlap_p300_H3K27me3 &lt;- sum(countOverlaps(p300_peaks, H3K27me3_peaks, maxgap=-1L, minoverlap=0L, type=&quot;any&quot;))
 
 # Number of all p300 peaks
 p300_peak_num &lt;- length(p300_peaks)
@@ -411,13 +417,13 @@ perc_H3K4me1 &lt;- overlap_p300_H3K4me1/p300_peak_num*100
 perc_H3K4me3 &lt;- overlap_p300_H3K4me3/p300_peak_num*100
 perc_H3K27me3 &lt;- overlap_p300_H3K27me3/p300_peak_num*100
 sprintf(&quot;Percentage of p300 peaks overlapped by H3K27ac: %f&quot;, perc_H3K27ac)</code></pre>
-<pre><code>## [1] &quot;Percentage of p300 peaks overlapped by H3K27ac: 18.979570&quot;</code></pre>
+<pre><code>## [1] &quot;Percentage of p300 peaks overlapped by H3K27ac: 57.277443&quot;</code></pre>
 <pre class="r"><code>sprintf(&quot;Percentage of p300 peaks overlapped by H3K4me1: %f&quot;, perc_H3K4me1)</code></pre>
-<pre><code>## [1] &quot;Percentage of p300 peaks overlapped by H3K4me1: 19.646449&quot;</code></pre>
+<pre><code>## [1] &quot;Percentage of p300 peaks overlapped by H3K4me1: 39.434035&quot;</code></pre>
 <pre class="r"><code>sprintf(&quot;Percentage of p300 peaks overlapped by H3K4me3: %f&quot;, perc_H3K4me3)</code></pre>
-<pre><code>## [1] &quot;Percentage of p300 peaks overlapped by H3K4me3: 11.538054&quot;</code></pre>
+<pre><code>## [1] &quot;Percentage of p300 peaks overlapped by H3K4me3: 44.091599&quot;</code></pre>
 <pre class="r"><code>sprintf(&quot;Percentage of p300 peaks overlapped by H3K27me3: %f&quot;, perc_H3K27me3)</code></pre>
-<pre><code>## [1] &quot;Percentage of p300 peaks overlapped by H3K27me3: 0.038813&quot;</code></pre>
+<pre><code>## [1] &quot;Percentage of p300 peaks overlapped by H3K27me3: 0.359903&quot;</code></pre>
 </div>
 </div>
 

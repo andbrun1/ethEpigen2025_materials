@@ -51,10 +51,16 @@ H3K4me3_peaks <- rtracklayer::import("H3K4me3.bed", format="narrowPeak")
 H3K27me3_peaks <- rtracklayer::import("H3K27me3.bed", format="narrowPeak")
 
 #Stringent overlap count with "within"
-overlap_p300_H3K27ac <- sum(countOverlaps(p300_peaks, H3K27ac_peaks, maxgap=-1L, minoverlap=0L, type="within"))
-overlap_p300_H3K4me1 <- sum(countOverlaps(p300_peaks, H3K4me1_peaks, maxgap=-1L, minoverlap=0L, type="within"))
-overlap_p300_H3K4me3 <- sum(countOverlaps(p300_peaks, H3K4me3_peaks, maxgap=-1L, minoverlap=0L, type="within"))
-overlap_p300_H3K27me3 <- sum(countOverlaps(p300_peaks, H3K27me3_peaks, maxgap=-1L, minoverlap=0L, type="within"))
+#overlap_p300_H3K27ac <- sum(countOverlaps(p300_peaks, H3K27ac_peaks, maxgap=-1L, minoverlap=0L, type="within"))
+#overlap_p300_H3K4me1 <- sum(countOverlaps(p300_peaks, H3K4me1_peaks, maxgap=-1L, minoverlap=0L, type="within"))
+#overlap_p300_H3K4me3 <- sum(countOverlaps(p300_peaks, H3K4me3_peaks, maxgap=-1L, minoverlap=0L, type="within"))
+#overlap_p300_H3K27me3 <- sum(countOverlaps(p300_peaks, H3K27me3_peaks, maxgap=-1L, minoverlap=0L, type="within"))
+
+# Adapted overlap count with "any"
+overlap_p300_H3K27ac <- sum(countOverlaps(p300_peaks, H3K27ac_peaks, maxgap=-1L, minoverlap=0L, type="any"))
+overlap_p300_H3K4me1 <- sum(countOverlaps(p300_peaks, H3K4me1_peaks, maxgap=-1L, minoverlap=0L, type="any"))
+overlap_p300_H3K4me3 <- sum(countOverlaps(p300_peaks, H3K4me3_peaks, maxgap=-1L, minoverlap=0L, type="any"))
+overlap_p300_H3K27me3 <- sum(countOverlaps(p300_peaks, H3K27me3_peaks, maxgap=-1L, minoverlap=0L, type="any"))
 
 # Number of all p300 peaks
 p300_peak_num <- length(p300_peaks)

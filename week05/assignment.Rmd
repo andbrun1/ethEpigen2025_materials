@@ -1,0 +1,75 @@
+---
+title: "assignment"
+output: html_document
+date: "2025-03-24"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Assignment 5
+
+## Loading of required packages
+```{r}
+suppressPackageStartupMessages({
+  library(AnnotationHub)
+  library(ensembldb)
+  library(GenomicRanges)
+  library(epiwraps)
+  library(rtracklayer)
+  library(ggplot2)
+  library(R.utils)
+})
+```
+## Download of peaks in mESCs
+```{r}
+# Download and unzipping for required files containing peaks for both marks in mESCs
+
+download.file("https://www.encodeproject.org/files/ENCFF422YVG/@@download/ENCFF422YVG.bed.gz", "H3K4me3_ESC.bed.gz")
+gunzip("H3K4me3_ESC.bed.gz", remove=FALSE)
+
+download.file("https://www.encodeproject.org/files/ENCFF558YNC/@@download/ENCFF558YNC.bed.gz", "H3K27me3_ESC.bed.gz")
+gunzip("H3K27me3_ESC.bed.gz", remove=FALSE)
+
+
+# Loading of all previously downloaded bed files
+H3K4me3_ESC_peaks <- rtracklayer::import("H3K4me3_ESC.bed", format="narrowPeak")
+H3K27me3_ESC_peaks <- rtracklayer::import("H3K27me3_ESC.bed", format="narrowPeak")
+```
+## Download of peaks in mouse B cell found in the lymph node
+```{r}
+# Download and unzipping for required files containing peaks for both marks in mouse B-cells
+download.file("https://www.encodeproject.org/files/ENCFF905MCV/@@download/ENCFF905MCV.bed.gz", "H3K27me3_Bcell.bed.gz")
+gunzip("H3K27me3_Bcell.bed.gz", remove=FALSE)
+
+download.file("https://www.encodeproject.org/files/ENCFF074IHM/@@download/ENCFF074IHM.bed.gz", "H3K4me3_Bcell.bed.gz")
+gunzip("H3K4me3_Bcell.bed.gz", remove=FALSE)
+
+# Loading of previously downloaded bed files
+H3K4me3_B_peaks <- rtracklayer::import("H3K4me3_Bcell.bed", format="narrowPeak")
+H3K27me3_B_peaks <- rtracklayer::import("H3K27me3_Bcell.bed", format="narrowPeak")
+```
+## Find bivalent regions in mESCs
+```{r}
+bivalent_peaks_ESC <- subsetByOverlaps(H3K27me3_ESC_peaks, H3K4me3_ESC_peaks, type="any")
+#bivalent_peaks_ESC
+number_bivalent_ESC <- length(bivalent_peaks_ESC)
+```
+## Find overlapping regions of ESC-bivalent regions and B-cell bivalent or single marker regions
+```{r}
+num_overlap_K27 <- sum(overlapsAny(bivalent_peaks_ESC, H3K27me3_B_peaks))
+num_overlap_K4 <- sum(overlapsAny(bivalent_peaks_ESC, H3K4me3_B_peaks))
+
+bivalent_peaks_B <- subsetByOverlaps(H3K27me3_B_peaks, H3K4me3_B_peaks, type="any")
+num_overlap_bivalent <- sum(overlapsAny(bivalent_peaks_ESC, bivalent_peaks_B))
+```
+## Result of the peak overlaps
+```{r, echo=FALSE}
+sprintf("Number of peaks of H3K27me3 in mouse B-cells overlapping bivalent peak regions in the mESC: %d", num_overlap_K27)
+sprintf("Percentage of peaks of H3K27me3 in mouse B-cells overlapping bivalent peak regions in the mESC: %f", num_overlap_K27/number_bivalent_ESC)
+sprintf("Number of peaks of H3K4me3 in mouse B-cells overlapping bivalent peak regions in the mESC: %d", num_overlap_K4)
+sprintf("Percentage of peaks of H3K27me3 in mouse B-cells overlapping bivalent peak regions in the mESC: %f", num_overlap_K4/number_bivalent_ESC)
+sprintf("Number of peaks of bivalent regions in mouse B-cells overlapping bivalent peak regions in the mESC: %d", num_overlap_bivalent)
+sprintf("Percentage of peaks of bivalent regions in mouse B-cells overlapping bivalent peak regions in the mESC: %f", num_overlap_bivalent/number_bivalent_ESC)
+```

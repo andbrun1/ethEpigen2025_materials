@@ -1,0 +1,78 @@
+---
+title: "assignment"
+output: html_document
+date: "2025-03-30"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Assignment 6
+
+
+## Required Packages
+```{r}
+suppressPackageStartupMessages({
+  library(AnnotationHub)
+  library(GenomicRanges)
+  library(ensembldb)
+  library(ggplot2)
+  library(GenomicRanges) # data structure for genomic ranges 
+  library(epiwraps) 
+  #library(memes) # for the meme-based methods -- COMMENT OUT when using alternatives
+  library(motifmatchr) # for scanning sequences
+  library(Biostrings) # for handling sequences
+  library(MotifDb) # database of motifs
+  library(TFBSTools) # for handling some motif formats
+  library(universalmotif) # for converting motifs to various formats
+  library(PWMEnrich) # for R-based motif enrichment analysis
+  library(BiocIO)
+  library(Rsamtools)
+  library(BSgenome.Hsapiens.UCSC.hg38)
+})
+```
+## Download of required files
+```{r}
+options(timeout=1800)
+download.file("https://www.encodeproject.org/files/ENCFF769NZQ/@@download/ENCFF769NZQ.bed.gz", "human_EGR1.bed.gz")
+peaks <- rtracklayer::import("human_EGR1.bed.gz", format="NarrowPeak")
+seqlevelsStyle(peaks) <- "UCSC"
+
+
+ah <- AnnotationHub()
+#query_results <- AnnotationHub::query(ah, c("GRCh38", "TwoBit"))
+genome <- ah[["AH106283"]]
+# load
+genome_seqs <- import(genome)
+```
+## Getting desired motif
+```{r}
+motifs <- query(MotifDb, "EGR1")
+motif <- motifs[["Hsapiens-HOCOMOCOv10-EGR1_HUMAN.H10MO.A"]]
+```
+## Use motifmatcher
+```{r}
+#Biostrings::writeXStringSet(genome_seqs, "genome.fa")
+motif2 <- convert_motifs(motif, class="TFBSTools-PWMatrix")
+
+# Peaks
+motif_peaks <- motifmatchr::matchMotifs(motif2, subject=peaks, genome=BSgenome.Hsapiens.UCSC.hg38, out="positions")[[1]]
+#motif_peaks <- motifmatchr::matchMotifs(motif2, subject=peaks, genome=Rsamtools::FaFile("genome.fa"), out="positions")
+motif_peaks <- as(motif_peaks, "GRanges")
+
+seqlevelsStyle(peaks) <- "Ensembl"
+motif_across_genome <- matchMotifs(motif2, subject=genome_seqs, out="positions")[[1]]
+names(motif_across_genome) <- names(genome_seqs)
+motif_across_genome <- as(motif_across_genome, "GRanges")
+```
+## Result
+```{r}
+nr_peaks <- length(peaks)
+nr_overlap <- length(motif_peaks)
+percentage_peaks <- (nr_overlap/nr_peaks)*100
+nr_motif_fullgenome <- length(motif_across_genome)
+percentage_motif <- (nr_overlap/nr_motif_fullgenome)*100
+cat("Of the ", nr_peaks, "peaks, ", nr_overlap, " (", percentage_peaks, "%)", " contain a motif")
+cat("Of the ", nr_motif_fullgenome, "motif instances, ", nr_overlap, " (", percentage_motif, "%)", " overlap a peak")
+```

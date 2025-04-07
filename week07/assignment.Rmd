@@ -1,0 +1,81 @@
+---
+title: "Assignment"
+output: html_document
+date: "2025-04-07"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Assignment 7
+
+## Load Packages and files
+```{r}
+suppressPackageStartupMessages({
+  library(epiwraps)
+  library(AnnotationHub)
+  library(MotifDb)
+  library(memes)
+  library(universalmotif)
+  library(ensembldb)
+  library(ggplot2)
+  library(Rsamtools)
+  library(magick)
+})
+
+ah <- AnnotationHub(localHub=TRUE)
+genome <- ah[["AH68356"]]
+```
+
+```{r, eval=FALSE}
+options(timeout=1800)
+download.file("https://ethz-ins.org/content/w7/atac.chr19.bam", "atac.chr19.bam", mode="wb")
+download.file("https://ethz-ins.org/content/w7/atac.chr19.bam.bai", "atac.chr19.bam.bai", mode="wb")
+```
+## Get tracks
+```{r}
+bam <- "atac.chr19.bam"
+
+# create a track using only nucleosome-free fragments, the number of cuts/insertion sites at each position
+bam2bw(bam, output_bw = "NF_cuts.bw", paired=TRUE, binWidth=1L, type="ends", minFragLength=30, maxFragLength=120, trim=4L, extend=3L, forceSeqlevelsStyle = "Ensembl")
+
+# create a track using only the (10bp) centers of mono-nucleosome fragments, Will not necessarily bind directly after the nucleosome, therefore choose center for the nucleosome
+bam2bw(bam, output_bw = "mono_centers.bw", paired=TRUE, binWidth=5L, minFragLength=140, trim=4L,
+       maxFragLength=220, type="center", extend=10L, forceSeqlevelsStyle = "Ensembl")
+```
+## Get motifs and matches across chr19
+```{r}
+# get KLF4 and MAZ motif
+motif <- MotifDb::query(MotifDb, c("KLF4","Mus"))[[1]]
+motif2 <- MotifDb::query(MotifDb, c("MAZ","Mus"))[[1]]
+motif_conv <- convert_motifs(motif, class="TFBSTools-PFMatrix")
+motif2_conv <- convert_motifs(motif2, class="TFBSTools-PFMatrix")
+
+
+# get the sequence for chr19:
+chr19 <- import(genome)["19"]
+
+# find motif matches across chr19
+moi <- motifmatchr::matchMotifs(motif_conv, chr19, out="positions", p.cutoff=1e-5)[[1]]
+moi2 <- motifmatchr::matchMotifs(motif2_conv, chr19, out="positions", p.cutoff=1e-5)[[1]]
+# convert to GRanges
+moi <- as(setNames(moi,names(chr19)), "GRanges")
+moi2 <- as(setNames(moi2,names(chr19)), "GRanges")
+```
+## Plot motif tracks
+```{r}
+# we prepare the list of tracks, all that end with bigwig
+tracks <- list.files(pattern="bw$")
+names(tracks) <- gsub("\\.bw","",basename(tracks))
+
+# extract signals around the motif occurences
+# we zoom in to 300bp around the motif centers, in windows of 5bp for certain resolution
+sm <- signal2Matrix(tracks, moi, w=5, extend=300)
+sm2 <- signal2Matrix(tracks, moi2, w=5, extend=300)
+
+# plot the signals:
+plotEnrichedHeatmaps(sm, trim=0.95, multiScale = TRUE, axis_name = "0")
+plotEnrichedHeatmaps(sm2, trim=0.95, multiScale = TRUE, axis_name = "0")
+```
+

@@ -1,0 +1,137 @@
+---
+title: "assignment"
+output: html_document
+date: "2025-04-13"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Assignment 8
+
+```{r}
+suppressPackageStartupMessages({
+  library(epiwraps)
+  library(motifmatchr)
+  library(MotifDb)
+  library(universalmotif)
+  library(ggplot2)
+  library(SummarizedExperiment) # data structure, similar to signal to matrix function
+  library(sechm) # for plotting heatmaps from a SummarizedExperiment
+  library(BiocParallel) # for multithreading
+  library(chromVAR) # for motif accessibility estimation
+  library(limma) # for statistical analysis
+  library(AnnotationHub)
+})
+
+register(SnowParam(2))
+```
+
+```{r}
+options(timeout=6000)
+# ATAC-seq peak counts in the hippocampus upon stress
+download.file("https://ethz-ins.org/content/mouse_mm38_hippocampus.peakCounts.SE.rds", "stress.SE.rds", mode="wb")
+se <- readRDS("stress.SE.rds")
+head(se)
+```
+
+```{r}
+motifs <- MotifDb::query(MotifDb, c("HOCOMOCOv10", "Mmusculus"))
+# convert to a format motifmatchr can use, and use the gene symbols as names
+motifs <- do.call(TFBSTools::PWMatrixList, setNames(
+           universalmotif::convert_motifs(motifs, class="TFBSTools-PWMatrix"),
+           mcols(motifs)$geneSymbol))
+motifs <- motifs[unique(names(motifs))]
+
+ah <- AnnotationHub()
+genome <- ah[["AH68356"]]
+genome_seqs <- import(genome)
+```
+
+```{r}
+colData(se)$condition <- c("CTRL","CTRL","CTRL","CTRL","CTRL","CTRL","FSS","FSS","FSS","FSS","FSS","FSS")
+colData(se)$sex <- c("F","F","F","M","M","M","F","F","F","M","M","M")
+row.names(se) <- as.character(granges(se))
+
+se <- chromVAR::addGCBias(se, genome=genome_seqs)
+hist(rowData(se)$bias)
+# Added bias column, most have 50% GC no clear difference to either side
+```
+```{r}
+# Check which peaks contain which motif
+moi <- motifmatchr::matchMotifs(motifs, subject=se, genome=genome_seqs)
+# 400 motifs, 6 for each animal
+
+# ensure reproducibility
+set.seed(1234)
+# Get background
+bg <- chromVAR::getBackgroundPeaks(se, niterations=500)
+# for each motif, we computed per-sample deviations relative to the background
+# annotations tells in which peak is which motif
+dev <- chromVAR::computeDeviations(object = se, annotations=moi,
+                                   background_peaks=bg)
+```
+## Differential analysis
+Prepare model matrices
+```{r}
+# Set base condition
+dev$condition <- factor(dev$condition)
+dev$condition <- relevel(dev$condition, "CTRL")
+dev$sex <- factor(dev$sex)
+dev$sex <- relevel(dev$sex, "M")
+# Specify formula
+mm_conditions <- model.matrix(~condition, data=as.data.frame(colData(dev)))
+mm_sex <- model.matrix(~sex, data=as.data.frame(colData(dev)))
+mm_double <- model.matrix(~condition*sex, data=as.data.frame(colData(dev)))
+```
+Fit model for condition and sex comparison
+```{r}
+# Fit model
+fit_conditions <- limma::eBayes(limma::lmFit(object = assays(dev)$z, design = mm_conditions))
+fit_sex <- limma::eBayes(limma::lmFit(object = assays(dev)$z, design = mm_sex))
+fit_double <- limma::eBayes(limma::lmFit(object = assays(dev)$z, design = mm_double))
+# we select, from the columns of model.matrix `mm`, the coefficient we want to test:
+res_conditions <- as.data.frame(limma::topTable(fit_conditions, coef="conditionFSS", number = Inf))
+res_sex <- as.data.frame(limma::topTable(fit_sex, coef="sexF", number = Inf))
+res_double <- as.data.frame(limma::topTable(fit_double, coef = c("conditionFSS", "sexF"), number = Inf))
+```
+
+```{r}
+# Plot logFC and p-values to identify most significant motifs
+res_conditions$TF <- row.names(res_conditions)
+res_sex$TF <- row.names(res_sex)
+res_double$TF <- row.names(res_double)
+# Relevant motifs for CTRL vs. FSS
+ggplot(res_conditions, aes(logFC, -log10(adj.P.Val), label=TF)) + geom_text()
+# Relevant motifs for M vs. F
+ggplot(res_sex, aes(logFC, -log10(adj.P.Val), label=TF)) + geom_text()
+# Combination of the two, plot with F instead of logFC
+ggplot(res_double, aes(F, -log10(adj.P.Val), label=TF)) + geom_text()
+```
+
+## Plot heatmaps
+
+Control vs. FSS
+```{r}
+metadata(dev)$anno_colors <- list(sex=c(M="lightgrey", F="darkred"), condition=c(CTRL="darkblue", FSS="pink"))
+sechm::sechm(dev, features = head(row.names(res_conditions)), assayName="z", top_annotation = c("condition", "sex"))
+```
+
+Male vs. Female
+```{r}
+sechm::sechm(dev, features = head(row.names(res_sex)), cluster_cols=TRUE, assayName="z", top_annotation = c("condition", "sex"))
+```
+
+Bonus heatmap for the combination
+```{r}
+sechm::sechm(dev, features = head(row.names(res_double)), cluster_cols=TRUE, assayName="z", top_annotation = c("condition", "sex"))
+```
+
+## Interpretation
+When looking at control vs. forced swim test there is a significant difference for the motifs ANDR, GCR and PRGR. For these motifs more peaks overlap them in FSS animals when comparing with the control animals. In the heatmap it's possible to see very faint differences also for other motifs but a clear difference is only visible for these three. The yellow squares show an enrichment of the motif in peaks in 4 of 5 animals, one female did not show such a reaction.
+
+If the sex difference is observed the number of peaks overlapping motifs is more variable, more motifs show some change but most are not significantly different. TYY1, TEAD1, ZN143, RUNX3, PTF1A and MYB show the biggest differences. All of them are on average more often overlapped by peaks in females compared to males, which is shown in the heatmap.
+
+(Additional for the double:)
+In the plot and heatmap for sex and condition with interaction, a mixture of the previously reported motifs from the individual tests shows up. In the heatmap it doesn't look like there are clear differences for condition and sex at the same time, the blocks are separated quite clearly by sex OR condition. This might show, that there is no big difference for the combination of the two traits, the selection simply chooses what is different for either one state.

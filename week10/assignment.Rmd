@@ -1,0 +1,163 @@
+---
+title: "assignment"
+output: html_document
+date: "2025-05-12"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Assignment 10
+
+```{r}
+suppressPackageStartupMessages({
+  library(GenomicRanges)
+  library(epiwraps)
+  library(ggplot2)
+  library(rGREAT) # Gene Ontology enrichment among genomic regions, good for enrichment analysis
+})
+```
+
+```{r}
+options(timeout = 6000)
+download.file("https://ethz-ins.org/content/w10.assignment.zip", "w10.assignment.zip")
+unzip("w10.assignment.zip")
+```
+## Prepare the regions and the tracks
+
+```{r}
+tracks <- list.files(pattern="bw$")
+regions_creb1 <- rtracklayer::import.bed("Creb1.bed") #contains regions of interest
+regions_creb3 <- rtracklayer::import.bed("Creb3.bed")
+regions_creb3L1 <- rtracklayer::import.bed("Creb3L1.bed")
+```
+
+## Plot
+
+```{r}
+ese <- signal2Matrix(tracks, regions_creb1, extend=2000)
+plotEnrichedHeatmaps(ese)
+ese3 <- signal2Matrix(tracks, regions_creb3, extend=2000)
+plotEnrichedHeatmaps(ese3)
+ese3L <- signal2Matrix(tracks, regions_creb3L1, extend=2000)
+plotEnrichedHeatmaps(ese3L)
+```
+
+Creb1 and Creb3L1 seem to have a similar binding pattern but are not exactly the same. Creb3 seems to have a more or less individual binding specificity but the order of the signal strength is still similar even if the signal is weak overall for the other two TFs. 
+
+## Clustering
+
+Trying different numbers of clusters:
+
+```{r}
+# Provide several k values and check how much variance is explained by the clusters - clear cutoff not seen
+cl2 <- clusterSignalMatrices(ese, k=2:10, scaleRows = TRUE)
+ggplot(cl2$varExplained, aes(k, varExplained)) + geom_line() # Choice: 3
+cl32 <- clusterSignalMatrices(ese3, k=2:10, scaleRows = TRUE)
+ggplot(cl32$varExplained, aes(k, varExplained)) + geom_line() # Choice: 4
+cl3L2 <- clusterSignalMatrices(ese3L, k=2:10, scaleRows = TRUE)
+ggplot(cl3L2$varExplained, aes(k, varExplained)) + geom_line() # Choice: 4
+```
+
+```{r}
+# Cluster rows using hierarchical clustering, weighted
+set.seed(123)  # to ensure that it gives the same results every time
+cl <- clusterSignalMatrices(ese, k=3, scaleRows = TRUE)
+cl3 <- clusterSignalMatrices(ese3, k=4, scaleRows = TRUE)
+cl3L <- clusterSignalMatrices(ese3L, k=4, scaleRows = TRUE)
+# Done to get signal per row, want number of clusters that looked good in the plot before
+# 77% captured in cluster for Creb1
+# 93% captured in cluster for Creb3
+# 84% captured in cluster for Creb3L
+
+# to make sure the cluster labels stay associated with the corresponding regions/rows
+# even if we manipulate the object, put them inside the rowData of the object:
+# Subset and reorder, store labels in the object
+rowData(ese)$cluster <- cl
+rowData(ese3)$cluster <- cl3
+rowData(ese3L)$cluster <- cl3L
+```
+
+
+
+
+
+Plotting the clusters:
+
+```{r}
+mycolors3 <- c("1"="red", "2"="blue", "3"="darkgreen")
+mycolors4 <- c("1"="red", "2"="blue", "3"="darkgreen", "4"="black")
+plotEnrichedHeatmaps(ese, row_split=rowData(ese)$cluster, mean_color=mycolors3, colors=c("white","darkred")) #
+plotEnrichedHeatmaps(ese3, row_split=rowData(ese3)$cluster, mean_color=mycolors4, colors=c("white","darkred")) # Might have also worked with 3 clusters (2 are close together in curve)
+plotEnrichedHeatmaps(ese3L, row_split=rowData(ese3L)$cluster, mean_color=mycolors4, colors=c("white","darkred")) # Might have also worked with 3 clusters (2 are close together in curve)
+```
+
+For Creb1 peaks a big cluster has strong signal also for Creb3L1, one is nearly exclusive for Creb1 and the third one with the weakest signal has a noisy and weak signal for the other two TFs.
+For Creb3 two small clusters look similar with a broad signal in Creb3L1. The biggest cluster has nearly only peaks for Creb3 and no clear signal for the other two. Cluster 4 looks similar to the cluster you would expect in one of the other groups where Creb3 signal looks more like it has followed an actual signal of the other two (e.g. target of Creb3L1 but Creb3 also has some residual binding).
+Creb3L1 peaks show some overlap with the peaks of Creb1 in cluster 1 and 4. In cluster 3 the other TFs only get a weak and noisy signal. Cluster 2 shows faint and diffuse signal for all three TFs.
+
+
+
+Plotting just the averages:
+
+```{r}
+#Here see it in relation
+d <- meltSignals(ese, splitBy=cl)
+ggplot(d, aes(position, mean, colour=sample)) + geom_line(size=1.2) + facet_wrap(~split)
+d3 <- meltSignals(ese3, splitBy=cl3)
+ggplot(d3, aes(position, mean, colour=sample)) + geom_line(size=1.2) + facet_wrap(~split)
+d3L <- meltSignals(ese3L, splitBy=cl3L)
+ggplot(d3L, aes(position, mean, colour=sample)) + geom_line(size=1.2) + facet_wrap(~split)
+```
+
+Creb1 shares some peaks with Creb3L1 or binds exclusively, a smaller proportion is also bound by both other TFs.
+Creb3 has a group of exclusive peaks but also has some shared peaks, these look a bit more diffuse and not as specific for any of the TFs.
+Creb3L has peaks that are pretty exclusive to it but also seems to follow the other two TFs in their binding at other sites.
+
+
+## Enrichment analysis
+
+Find what's enriched in one cluster with respect to the others:
+
+```{r}
+# we first split the regions by cluster:
+split_regions <- split(rowRanges(ese), rowData(ese)$cluster)
+split_regions3 <- split(rowRanges(ese3), rowData(ese3)$cluster)
+split_regions3L <- split(rowRanges(ese3L), rowData(ese3L)$cluster)
+
+res <- great(split_regions[["3"]], gene_sets="GO:BP", tss_source="mm10", 
+             background=regions_creb1, cores=2)
+bp <- getEnrichmentTables(res)
+
+res3 <- great(split_regions3[["4"]], gene_sets="GO:BP", tss_source="mm10", 
+             background=regions_creb3, cores=2)
+bp3 <- getEnrichmentTables(res3)
+
+res3L <- great(split_regions3[["4"]], gene_sets="GO:BP", tss_source="mm10", 
+             background=regions_creb3L1, cores=2)
+bp3L <- getEnrichmentTables(res3L)
+```
+
+We plot the top Biological Processes:
+
+```{r, fig.width=9, fig.height=6}
+ggplot(head(bp,15), aes(fold_enrichment, reorder(description, p_adjust), 
+                        size=observed_region_hits, color=-log10(p_adjust))) + 
+  geom_point() + scale_color_viridis_c()
+
+ggplot(head(bp3,15), aes(fold_enrichment, reorder(description, p_adjust), 
+                        size=observed_region_hits, color=-log10(p_adjust))) + 
+  geom_point() + scale_color_viridis_c()
+
+ggplot(head(bp3L,15), aes(fold_enrichment, reorder(description, p_adjust), 
+                        size=observed_region_hits, color=-log10(p_adjust))) + 
+  geom_point() + scale_color_viridis_c()
+```
+
+For Creb1 some non-significant enrichment in different stages of development (regulation of vasculature development, very faint in cell cycle associated mechanisms)
+For Creb3 strong enrichment in few hits concerning energy household (might be significant). Otherwise non-significant association with immune signalling or metabolism.
+For Creb3L1 only non-significant and either low enrichment or low hits found. Most likely associated with developmental mechanisms in cell morphogenesis, neuron development and IL-1 response.
+
+This analysis does not show a very clear association of the individual TFs with certain functions. Also Creb1 and Creb3L1 seem somewhat similar in their role in development but are attributed to very different individual mechanisms. In the other peak comparisons these two seemed much more closely related in their binding patterns. Creb3 seems to be the clearest to attribute to a function which differs more from the other two in enrichment analysis as well as in the binding patterns.
+

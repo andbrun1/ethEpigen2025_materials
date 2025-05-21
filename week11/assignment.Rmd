@@ -1,0 +1,114 @@
+---
+title: "assignment"
+output: html_document
+date: "2025-05-20"
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Assignment 11
+
+```{r setup}
+suppressPackageStartupMessages({
+  library(epiwraps)
+  library(ggplot2)
+  library(AnnotationHub)
+  library(ensembldb)
+  library(edgeR)
+  library(rtracklayer)
+  library(BiocParallel)
+  library(bsseq)   # Class and tools to analyze bisulfite sequencing data at CpG-level
+  library(DMRcate) # Identification of differentially-methylated regions
+  library(rGREAT)
+})
+```
+
+### Load the data
+
+Download:
+
+```{r, eval=FALSE}
+options(timeout = 6000)
+download.file("https://ethz-ins.org/content/w11_practical.zip", "w11_practical.zip")
+unzip("w11_practical.zip")
+```
+### Plot
+
+Plotted for top 20 and top 5 due to different informations on git and in the slides
+```{r, warnings = FALSE}
+DMR <- readRDS("dmr.rds")
+DMR_1 <- DMR[which(seqnames(DMR)=="chr1")]
+
+bs <- readRDS("ESC_astrocytes_BSseq.rds")
+# remove CpGs that have 0 coverage in some samples:
+bs <- bs[rowSums(assay(bs,"Cov")>0)==ncol(bs),]
+bs2 <- BSmooth(bs, BPPARAM=MulticoreParam(4, progress=TRUE))
+
+# For top 20
+metCpGs <- bsseq::getMeth(bs2, regions=DMR_1[1:20], what="perRegion")
+
+colnames(metCpGs) <- colnames(bs)
+pheatmap(metCpGs, name="methylation") 
+
+# For top 5
+metCpGs <- bsseq::getMeth(bs2, regions=DMR_1[1:5], what="perRegion")
+
+colnames(metCpGs) <- colnames(bs)
+pheatmap(metCpGs, name="methylation") 
+```
+
+### Enrichment analysis
+
+Find what's enriched in the top 20 regions with respect to the others:
+
+We plot the top Biological Processes:
+
+```{r, fig.width=9, fig.height=6, warnings=FALSE}
+#DMR_sig <- DMR[which(DMR$min_smoothed_fdr<0.05)] 
+# Couldn't find out what is significant, nothing made sense with a cutoff of 0.05 and the documentation didn't help either (tried with Fisher, Stouffer, HMFDR and min_smoothed_fdr)
+res <- great(DMR[1:20], gene_sets="GO:BP", tss_source="mm10", 
+             background=DMR, cores=2)
+bp <- getEnrichmentTables(res)
+
+ggplot(head(bp,20), aes(fold_enrichment, reorder(description, p_adjust), 
+                        size=observed_region_hits, color=-log10(p_adjust))) + 
+  geom_point() + scale_color_viridis_c()
+```
+
+I tested the top 20 regions from the differentially-methylated regions against all DMRs (couldn't figure out which are the significant ones and it didn't render any significant results when comparing them against the whole chromosome, see further down). This should show enrichment of the top 20 regions of differential methylation in biological processes. The result shows no significance and only very low enrichment. Further the -log(p) scale looks very sketchy with only one value and suggests, that something has gone wrong.
+
+
+
+
+Failed code, please ignore :)
+```{r}
+# Didn't work
+# mcols(DMR_1)$signal <- mcols(DMR_1)$maxdiff
+# m <- signal2Matrix(list(DMR=DMR_1), regions=DMR_1[1:20])
+# plotEnrichedHeatmaps(m, axis_name = "m", use_raster=TRUE)
+
+
+
+#Will not render any significant regions
+
+# bs <- readRDS("ESC_astrocytes_BSseq.rds")
+# # remove CpGs that have 0 coverage in some samples:
+# bs <- bs[rowSums(assay(bs,"Cov")>0)==ncol(bs),]
+# bs2 <- BSmooth(bs, BPPARAM=MulticoreParam(4, progress=TRUE))
+# 
+# seqAnnot <- sequencing.annotate(bs2, methdesign, all.cov=TRUE, coef="celltypeastrocytes")
+# 
+# background_gr <- as(seqAnnot@ranges, "GRanges")
+# background_gr_1 <- background_gr[which(seqnames(background_gr)=="chr1")]
+# DMR_sig <- DMR[which(DMR$Fisher<0.05)]
+# res2 <- great(DMR_sig, gene_sets="GO:BP", tss_source="mm10", 
+#              background=background_gr_1, cores=2)
+# bp2 <- getEnrichmentTables(res2)
+# 
+# ggplot(head(bp2, 20), aes(fold_enrichment, reorder(description, p_adjust), 
+#                         size=observed_region_hits, color=-log10(p_adjust))) + 
+#   geom_point() + scale_color_viridis_c()
+
+```

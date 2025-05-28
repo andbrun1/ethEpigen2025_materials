@@ -1,0 +1,136 @@
+---
+title: "assignment"
+output: html_document
+date: "2025-05-26"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Assignment 12
+
+
+```{r}
+suppressPackageStartupMessages({
+  library(GenomicRanges)
+  library(AnnotationHub)
+  library(ensembldb)
+  library(InteractionSet)
+  library(rtracklayer)
+  library(R.utils)
+  library(ggplot2)
+})
+```
+
+
+```{r}
+# p300 in epithelial human cells
+download.file("https://www.encodeproject.org/files/ENCFF307PSW/@@download/ENCFF307PSW.bed.gz", "p300_narrowPeak.gz")
+# gunzip("p300_narrowPeak.gz")
+# Distal enhancer targets in human cells
+download.file("https://ethz-ins.org/content/hg38.SalviatoDistalEnhancerTargets.GR.rds", "DistTarg.rds")
+
+ah <- AnnotationHub()
+ensdb <- ah[["AH95744"]]
+```
+
+```{r}
+DTargets <- readRDS("DistTarg.rds")
+peaks <- rtracklayer::import("p300.narrowPeak.gz")
+seqlevelsStyle(peaks) <- "ensembl"
+seqlevelsStyle(DTargets) <- "ensembl"
+download.file("https://ethz-ins.org/content/hgEns104.promoters.rds", "promoters.rds")
+proms <- readRDS("promoters.rds")
+#seqlevelsStyle(proms) <- "ensembl"
+```
+
+## Preparation and assigning targets
+```{r}
+o <- findOverlaps(peaks, DTargets)
+mcols(peaks)[from(o),"target"]<- DTargets[to(o)]$target
+mcols(peaks)[from(o),"target_start"]<- start(DTargets[to(o)])
+# I believe this renders only the distance between mid of peaks and the estimated contact point, not the TSS of the contacted gene itself but I just can't figure out where to find the ranges of the actual genes
+peaks$dist_TSS <- abs(mid(peaks)-peaks$target_start)
+
+ 
+Up_target <- mid(peaks)-peaks$target_start>0
+peaks$direction_target <- Up_target
+
+keep <- !is.na(mcols(peaks)$target)
+peaks <- peaks[keep,]
+
+
+# Renders many NAs, most target genes are not included
+# for (i in seq(1, length(peaks))){
+#   pr <- proms[which(proms$gene_name[1]==peaks$target[i])]
+#   if (length(pr)!=0) {
+#     peaks$dist_TSS[i] <- abs(mid(peaks[i])-start(pr))
+#   }
+#   else{
+#     peaks$dist_TSS[i] <- NA
+#   }
+# }
+```
+
+## Distance calculations and split of dataset
+```{r}
+p <- distanceToNearest(peaks, proms)
+mcols(peaks)[from(p),"closest"]<- proms[to(p)]$gene_name
+
+upstream <- follow(peaks, proms)
+up_dist <- abs(mid(peaks)-start(proms[upstream]))
+#up_dist <- distance(peaks, proms[upstream])
+downstream <- precede(peaks, proms)
+down_dist <- abs(mid(peaks)-start(proms[downstream]))
+#down_dist <- distance(peaks, proms[downstream])
+
+Up <- up_dist<down_dist
+peaks$direction <- Up
+peaks$distance <- pmin(up_dist, down_dist)
+
+upstream_peaks <- peaks[which(peaks$direction_target)]
+downstream_peaks <- peaks[which(peaks$direction_target==FALSE)]
+```
+
+## Proportions
+```{r}
+# Changed the selection as most closest targets are not included in proms
+#up_included <- mapply(function(targets, closest) closest %in% targets, upstream_peaks$target, upstream_peaks$closest) # Would have rendered about 8%
+up_included <- mapply(function(distance, dist_TSS) distance<dist_TSS, upstream_peaks$distance, upstream_peaks$dist_TSS)
+up_prop <- sum(up_included)/length(up_included)
+sprintf("Proportion of closest genes upstream to a peak being included in predicted targets for the same peak: %f", up_prop)
+
+#down_included <- mapply(function(targets, closest) closest %in% targets, downstream_peaks$target, downstream_peaks$closest) # Would have rendered about 7%
+down_included <- mapply(function(distance, dist_TSS) distance<dist_TSS, downstream_peaks$distance, downstream_peaks$dist_TSS)
+down_prop <- sum(down_included)/length(down_included)
+sprintf("Proportion of closest genes downstream to a peak being included in predicted targets for the same peak: %f", down_prop)
+```
+
+## Plots
+```{r}
+# hist_up <- hist(upstream_peaks$distance, breaks = 30, main = "Distance between p300 peaks and upstream TSS", xlab = "Distance p300 peak to upstream TSS", xlim = range(0, 175000))
+# hist_down <- hist(downstream_peaks$distance, breaks = 30, main = "Distance between p300 peaks and downstream TSS", xlab = "Distance p300 peak to downstream TSS")
+
+only_dist_up <- data.frame(upstream_peaks$distance)
+upstream_plot <- ggplot(only_dist_up, aes(x=upstream_peaks.distance)) + 
+  geom_histogram(binwidth = 1000) + xlim(0, 175000) + ggtitle("Distances between p300 peaks and TSS of the closest gene (upstream)") + labs(x="Distance between p300 peak \n and TSS of the closest gene", y = "Count")
+upstream_plot
+
+only_dist_down <- data.frame(downstream_peaks$distance)
+downstream_plot <- ggplot(only_dist_down, aes(x=downstream_peaks.distance)) + 
+  geom_histogram(binwidth = 1000) + xlim(0, 160000) + ggtitle("Distances between p300 peaks and TSS of the closest gene (downstream)") + labs(x="Distance between p300 peak \n and TSS of the closest gene", y = "Count")
+downstream_plot
+
+
+# Same plots but for the target gene (I guess I used the wrong ranges, therefore I didn't plot them initially)
+only_dist_up_target <- data.frame(upstream_peaks$dist_TSS)
+upstream_plot_target <- ggplot(only_dist_up_target, aes(x=upstream_peaks.dist_TSS)) + 
+  geom_histogram(binwidth = 100) + xlim(0, 4000) + ggtitle("Distances between p300 peaks and TSS of the target gene (upstream)") + labs(x="Distance between p300 peak \n and TSS of the target gene", y = "Count")
+upstream_plot_target
+
+only_dist_down_target <- data.frame(downstream_peaks$dist_TSS)
+downstream_plot_target <- ggplot(only_dist_down_target, aes(x=downstream_peaks.dist_TSS)) + 
+  geom_histogram(binwidth = 10) + xlim(0, 500) + ggtitle("Distances between p300 peaks and TSS of the target gene (downstream)") + labs(x="Distance between p300 peak \n and TSS of the target gene", y = "Count")
+downstream_plot_target
+```

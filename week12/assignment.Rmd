@@ -97,14 +97,14 @@ downstream_peaks <- peaks[which(peaks$direction_target==FALSE)]
 ```{r}
 # Changed the selection as most closest targets are not included in proms
 #up_included <- mapply(function(targets, closest) closest %in% targets, upstream_peaks$target, upstream_peaks$closest) # Would have rendered about 8%
-up_included <- mapply(function(distance, dist_TSS) distance<dist_TSS, upstream_peaks$distance, upstream_peaks$dist_TSS)
+up_included <- mapply(function(distance, dist_TSS) distance>dist_TSS, upstream_peaks$distance, upstream_peaks$dist_TSS)
 up_prop <- sum(up_included)/length(up_included)
-sprintf("Proportion of closest genes upstream to a peak being included in predicted targets for the same peak: %f", up_prop)
+sprintf("Proportion of target genes upstream to a peak being closer to the peak than the closest gene found in promotors: %f", up_prop)
 
 #down_included <- mapply(function(targets, closest) closest %in% targets, downstream_peaks$target, downstream_peaks$closest) # Would have rendered about 7%
-down_included <- mapply(function(distance, dist_TSS) distance<dist_TSS, downstream_peaks$distance, downstream_peaks$dist_TSS)
+down_included <- mapply(function(distance, dist_TSS) distance>dist_TSS, downstream_peaks$distance, downstream_peaks$dist_TSS)
 down_prop <- sum(down_included)/length(down_included)
-sprintf("Proportion of closest genes downstream to a peak being included in predicted targets for the same peak: %f", down_prop)
+sprintf("Proportion of target genes downstream to a peak being closer to the peak than the closest gene found in promotors: %f", down_prop)
 ```
 
 ## Plots

@@ -441,15 +441,15 @@ downstream_peaks &lt;- peaks[which(peaks$direction_target==FALSE)]</code></pre>
 <h2>Proportions</h2>
 <pre class="r"><code># Changed the selection as most closest targets are not included in proms
 #up_included &lt;- mapply(function(targets, closest) closest %in% targets, upstream_peaks$target, upstream_peaks$closest) # Would have rendered about 8%
-up_included &lt;- mapply(function(distance, dist_TSS) distance&lt;dist_TSS, upstream_peaks$distance, upstream_peaks$dist_TSS)
+up_included &lt;- mapply(function(distance, dist_TSS) distance&gt;dist_TSS, upstream_peaks$distance, upstream_peaks$dist_TSS)
 up_prop &lt;- sum(up_included)/length(up_included)
-sprintf(&quot;Proportion of closest genes upstream to a peak being included in predicted targets for the same peak: %f&quot;, up_prop)</code></pre>
-<pre><code>## [1] &quot;Proportion of closest genes upstream to a peak being included in predicted targets for the same peak: 0.056418&quot;</code></pre>
+sprintf(&quot;Proportion of target genes upstream to a peak being closer to the peak than the closest gene found in promotors: %f&quot;, up_prop)</code></pre>
+<pre><code>## [1] &quot;Proportion of target genes upstream to a peak being closer to the peak than the closest gene found in promotors: 0.943582&quot;</code></pre>
 <pre class="r"><code>#down_included &lt;- mapply(function(targets, closest) closest %in% targets, downstream_peaks$target, downstream_peaks$closest) # Would have rendered about 7%
-down_included &lt;- mapply(function(distance, dist_TSS) distance&lt;dist_TSS, downstream_peaks$distance, downstream_peaks$dist_TSS)
+down_included &lt;- mapply(function(distance, dist_TSS) distance&gt;dist_TSS, downstream_peaks$distance, downstream_peaks$dist_TSS)
 down_prop &lt;- sum(down_included)/length(down_included)
-sprintf(&quot;Proportion of closest genes downstream to a peak being included in predicted targets for the same peak: %f&quot;, down_prop)</code></pre>
-<pre><code>## [1] &quot;Proportion of closest genes downstream to a peak being included in predicted targets for the same peak: 0.000000&quot;</code></pre>
+sprintf(&quot;Proportion of target genes downstream to a peak being closer to the peak than the closest gene found in promotors: %f&quot;, down_prop)</code></pre>
+<pre><code>## [1] &quot;Proportion of target genes downstream to a peak being closer to the peak than the closest gene found in promotors: 1.000000&quot;</code></pre>
 </div>
 <div id="plots" class="section level2">
 <h2>Plots</h2>
